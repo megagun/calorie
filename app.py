@@ -27,6 +27,7 @@ def close_db(error):
 @app.route('/', methods=['POST', 'GET'])
 def index():
     db = get_db()
+
     if request.method == 'POST':
         date = request.form['date']
 
@@ -36,17 +37,31 @@ def index():
                    [database_date])
         db.commit()
 
-    cur = db.execute(
-        'select entry_date from log_date order by entry_date desc')
+    cur = db.execute('select log_date.entry_date, sum(food.protein) as \
+        protein, sum(food.carbohydrates) as carbohydrates, sum(food.fat) as \
+        fat, sum(food.calories) as calories from \
+        log_date join food_date on food_date.log_date_id = log_date.id join \
+        food on food.id = food_date.food_id group by log_date.id order by \
+        log_date.entry_date desc')
     results = cur.fetchall()
-    pretty_results = []
+
+    date_results = []
+
     for i in results:
         single_date = {}
-        d = datetime.strptime(str(i['entry_date']), '%Y%m%d')
-        single_date['entry_date'] = datetime.strftime(d, '%B %d, %Y')
-        pretty_results.append(single_date)
 
-    return render_template('home.html', results=pretty_results)
+        single_date['entry_date'] = i['entry_date']
+        single_date['protein'] = i['protein']
+        single_date['carbohydrates'] = i['carbohydrates']
+        single_date['fat'] = i['fat']
+        single_date['calories'] = i['calories']
+        print(i)
+        d = datetime.strptime(str(i['entry_date']), '%Y%m%d')
+        print(d)
+        single_date['pretty_date'] = datetime.strftime(d, '%B %d, %Y')
+        date_results.append(single_date)
+
+    return render_template('home.html', results=date_results)
 
 
 @app.route('/view/<date>', methods=['POST', 'GET'])  # date like 20170520
@@ -72,7 +87,6 @@ def view(date):
                         food.id = food_date.food_id where \
                         log_date.entry_date = ?', [date])
     log_results = log_cur.fetchall()
-
     totals = {}
     totals['protein'] = 0
     totals['carbohydrates'] = 0
@@ -84,7 +98,8 @@ def view(date):
         totals['fat'] += food['fat']
         totals['calories'] += food['calories']
 
-    return render_template('day.html', date=pretty_date,
+    return render_template('day.html', entry_date=date_result['entry_date'],
+                           pretty_date=pretty_date,
                            food_results=food_results, log_results=log_results,
                            totals=totals)
 
